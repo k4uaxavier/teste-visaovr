@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VisãoRA (independente) – Realidade Aumentada para Deficientes Visuais</title>
+<style>
+:root{box-sizing:border-box;--bg:#fff;--fg:#111;--card:#f1f3f6;--ac:#0b5fff;--acfg:#fff;--bd:#c5ccd6;--hl:#ffd400;
+padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a0c10;--fg:#f5f7fa;--card:#171b22;--ac:#ffd400;--acfg:#111;--bd:#3a4250;--hl:#ffd400}}
+:root[data-theme="dark"]{--bg:#0a0c10;--fg:#f5f7fa;--card:#171b22;--ac:#ffd400;--acfg:#111;--bd:#3a4250;--hl:#ffd400}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:18px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:920px;margin:0 auto;padding:16px}
+h1{font-size:1.7rem;margin:.2em 0}h2{font-size:1.3rem;margin:1.4em 0 .4em}
+.sub{opacity:.85;margin:0 0 12px}
+.stage{position:relative;background:#000;border-radius:16px;overflow:hidden;aspect-ratio:4/3;border:3px solid var(--bd)}
+video{width:100%;height:100%;object-fit:cover;display:block}
+.ph{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;color:#fff;font-size:1.1rem}
+#ov{position:absolute;inset:0;pointer-events:none}
+.tag{position:absolute;transform:translate(-50%,-50%);background:var(--hl);color:#111;font-weight:700;padding:4px 10px;border-radius:8px;border:2px solid #111;font-size:.95rem;white-space:nowrap}
+.tag::after{content:"";position:absolute;left:50%;bottom:-9px;margin-left:-5px;border:5px solid transparent;border-top-color:#111}
+.bar{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+button{font:inherit;font-weight:700;min-height:56px;padding:12px 18px;border-radius:12px;border:3px solid var(--ac);background:var(--ac);color:var(--acfg);cursor:pointer;flex:1 1 200px}
+button.sec{background:transparent;color:var(--fg);border-color:var(--bd)}
+button[aria-pressed="true"]{outline:4px solid var(--fg);outline-offset:2px}
+button:focus-visible{outline:4px solid var(--fg);outline-offset:3px}
+button:disabled{opacity:.5}
+#out{background:var(--card);border:2px solid var(--bd);border-radius:14px;padding:14px;min-height:80px;font-size:1.2rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.card{background:var(--card);border:2px solid var(--bd);border-radius:14px;padding:14px}
+.card h3{margin:0 0 6px;font-size:1.1rem}
+.card p{margin:0}
+label{display:flex;gap:8px;align-items:center;font-weight:600}
+input[type=range]{width:140px}
+.note{font-size:.95rem;opacity:.85}
+footer{margin:28px 0 10px;font-size:.9rem;opacity:.8}
+#vr{position:fixed;inset:0;z-index:99;background:#000;display:none;grid-template-columns:1fr 1fr}
+#vr.on{display:grid}
+#vr::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:#222}
+.eye{position:relative;overflow:hidden;width:100%;height:100%}
+.eye video{width:100%;height:100%;object-fit:cover;display:block}
+.eye .ov{position:absolute;inset:0}
+.eye .tag{font-size:2.6vmin}
+.eye .cap{position:absolute;left:6%;right:6%;bottom:8%;background:rgba(0,0,0,.78);color:#ffd400;font-weight:700;font-size:4vmin;line-height:1.3;padding:1vmin 2vmin;border-radius:2vmin;text-align:center}
+</style>
+</head>
+<body>
+<main>
+<h1>👁️ VisãoRA</h1>
+<p class="sub">Aponte a câmera e ouça o que está à sua frente. Inspirado no Aipoly Vision.</p>
+
+<section aria-label="Câmera com realidade aumentada">
+  <div class="stage">
+    <video id="v" autoplay playsinline muted aria-label="Imagem da câmera"></video>
+    <img id="pic" alt="Foto tirada" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <div id="ph" class="ph">Toque em “Ligar câmera” para começar.</div>
+    <div id="ov" aria-hidden="true"></div>
+  </div>
+  <div class="bar">
+    <button id="bCam">📷 Ligar câmera</button>
+    <button id="bDesc" disabled>🔊 Descrever cena</button>
+    <button id="bAuto" class="sec" aria-pressed="false" disabled>⏱️ Modo contínuo: desligado</button>
+    <button id="bRep" class="sec">↻ Repetir última fala</button>
+    <button id="bVR" class="sec" disabled>🥽 Modo VR (Shinecon)</button>
+    <button id="bPhoto" class="sec">📸 Tirar foto e descrever</button>
+    <input id="fi" type="file" accept="image/*" capture="environment" hidden>
+  </div>
+  <div class="bar" style="align-items:center">
+    <label>Velocidade da voz <input id="rate" type="range" min="0.7" max="1.6" step="0.1" value="1"></label>
+    <label><input id="spk" type="checkbox" checked> Falar resultados</label>
+    <label><input id="hc" type="checkbox"> Alto contraste escuro</label>
+  </div>
+  <details class="card" style="margin:10px 0" open><summary><b>🔑 Chave de API da Anthropic</b></summary>
+  <p class="note">Fica salva só neste aparelho e é enviada apenas para api.anthropic.com. Use uma chave com limite de gasto baixo.</p>
+  <div class="bar"><input id="key" type="password" autocomplete="off" placeholder="sk-ant-..." aria-label="Chave de API" style="flex:2 1 220px;min-height:56px;font:inherit;padding:8px 12px;border-radius:10px;border:3px solid var(--bd);background:var(--card);color:var(--fg)">
+  <input id="mdl" value="claude-haiku-5-5" aria-label="Modelo" style="flex:1 1 160px;min-height:56px;font:inherit;padding:8px 12px;border-radius:10px;border:3px solid var(--bd);background:var(--card);color:var(--fg)">
+  <button id="bKey" style="flex:0 1 120px">Salvar</button></div></details>
+  <div id="out" role="status" aria-live="polite">Nenhuma descrição ainda.</div>
+  <p class="note" id="st"></p>
+</section>
+
+<section>
+  <h2>Realidade Aumentada para Deficientes Visuais</h2>
+  <p>A realidade aumentada (RA) está revolucionando a maneira como as pessoas com deficiência visual interagem com o mundo ao redor. Aplicativos e dispositivos de RA, como o Microsoft HoloLens, podem superpor informações digitais no mundo real, ajudando no reconhecimento de objetos e na navegação espacial. Um exemplo é o Aipoly Vision, um aplicativo que utiliza RA para identificar e descrever objetos em tempo real para o usuário, facilitando a autonomia e mobilidade.</p>
+  <div class="grid">
+    <div class="card"><h3>🔎 Reconhecer objetos</h3><p>A câmera captura a cena e a IA nomeia o que vê: pessoas, móveis, alimentos, placas, cores.</p></div>
+    <div class="card"><h3>🧭 Navegar no espaço</h3><p>Cada objeto é localizado à esquerda, ao centro ou à direita, com noção de perto ou longe.</p></div>
+    <div class="card"><h3>🗣️ Voz em tempo real</h3><p>O resultado é falado em português e também aparece em texto grande e etiquetas sobre a imagem.</p></div>
+    <div class="card"><h3>🦾 Autonomia e mobilidade</h3><p>Mais independência em casa, no trabalho e na rua, sem depender sempre de outra pessoa.</p></div>
+  </div>
+</section>
+
+<footer>Protótipo educacional. A IA pode errar: não use como único recurso para atravessar ruas, ler remédios ou tomar decisões de segurança. As imagens são enviadas ao Claude apenas quando você toca em “Descrever” ou ativa o modo contínuo.</footer>
+<p class="note">Modo VR: ligue a câmera, toque em “Modo VR”, encaixe o celular no óculos com a câmera na abertura e use a voz: “descrever”, “repetir”, “contínuo” ou “sair”. Fora do óculos, toque duas vezes na tela para sair.</p>
+</main>
+<div id="vr" aria-label="Modo VR">
+  <div class="eye"><video playsinline muted autoplay></video><div class="ov"></div><div class="cap"></div></div>
+  <div class="eye"><video playsinline muted autoplay></video><div class="ov"></div><div class="cap"></div></div>
+</div>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var v=$('v'),ph=$('ph'),ov=$('ov'),out=$('out'),st=$('st');
+var bCam=$('bCam'),bDesc=$('bDesc'),bAuto=$('bAuto'),bRep=$('bRep');
+var stream=null,sample=null,busy=false,timer=null,last='';
+
+// tema
+$('hc').addEventListener('change',function(e){
+  if(e.target.checked) document.documentElement.setAttribute('data-theme','dark');
+  else document.documentElement.removeAttribute('data-theme');
+});
+
+// voz
+function speak(t){
+  last=t||last;
+  if(!$('spk').checked||!('speechSynthesis' in window)||!t) return;
+  try{
+    speechSynthesis.cancel();
+    var u=new SpeechSynthesisUtterance(t);
+    u.lang='pt-BR';u.rate=parseFloat($('rate').value);
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+bRep.onclick=function(){ if(last){var s=$('spk').checked;$('spk').checked=true;speak(last);$('spk').checked=s;} };
+
+// IA (API da Anthropic, chamada direta do navegador)
+function getKey(){try{return localStorage.getItem('vra_key')||''}catch(e){return ''}}
+try{$('key').value=getKey();var m=localStorage.getItem('vra_model');if(m)$('mdl').value=m;}catch(e){}
+$('bKey').onclick=function(){
+  try{localStorage.setItem('vra_key',$('key').value.trim());localStorage.setItem('vra_model',$('mdl').value.trim());st.textContent='Chave salva neste aparelho.';}
+  catch(e){st.textContent='Não foi possível salvar a chave neste navegador.';}
+};
+sample=function(){};
+sample.json=async function(prompt,o){
+  var key=($('key').value||getKey()).trim();
+  if(!key) throw {code:'sem chave'};
+  var b64=await new Promise(function(res){var fr=new FileReader();fr.onload=function(){res(fr.result.split(',')[1])};fr.readAsDataURL(o.images[0]);});
+  var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:($('mdl').value||'claude-haiku-5-5').trim(),max_tokens:600,
+      messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},{type:'text',text:prompt}]}]})});
+  if(r.status===429) throw {code:'rate_limited'};
+  if(!r.ok) throw {code:'HTTP '+r.status};
+  var d=await r.json();
+  var t=d.content.map(function(c){return c.text||''}).join('').replace(/```json|```/g,'').trim();
+  return JSON.parse(t);
+};
+
+// câmera
+bCam.onclick=async function(){
+  if(stream){stop();return;}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    v.srcObject=stream;ph.style.display='none';$('pic').style.display='none';
+    bCam.textContent='⏹️ Desligar câmera';
+    bDesc.disabled=false;bAuto.disabled=false;$('bVR').disabled=false;
+    speak('Câmera ligada.');
+  }catch(e){
+    ph.style.display='grid';
+    ph.textContent='A câmera ao vivo não abriu neste ambiente. Use “Tirar foto e descrever”.';
+    st.textContent='Erro da câmera: '+(e&&e.name?e.name:'desconhecido')+(e&&e.message?' – '+e.message:'');
+  }
+};
+function stop(){
+  if(stream){stream.getTracks().forEach(function(t){t.stop()});}
+  stream=null;v.srcObject=null;ph.style.display='grid';
+  ph.textContent='Câmera desligada.';ov.innerHTML='';
+  bCam.textContent='📷 Ligar câmera';bDesc.disabled=true;bAuto.disabled=true;$('bVR').disabled=true;exitVR();
+  setAuto(false);
+}
+
+function frame(){
+  return new Promise(function(res){
+    var w=v.videoWidth,h=v.videoHeight;
+    if(!w){res(null);return;}
+    var sc=Math.min(1,640/w),c=document.createElement('canvas');
+    c.width=Math.round(w*sc);c.height=Math.round(h*sc);
+    c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+    c.toBlob(function(b){res(b)},'image/jpeg',0.7);
+  });
+}
+
+var PROMPT='Você é um assistente de visão para uma pessoa cega. Analise a foto e responda APENAS com JSON válido, sem markdown, neste formato: {"resumo":"frase curta em português do Brasil descrevendo a cena (máx. 25 palavras)","objetos":[{"nome":"nome curto","x":0-100,"y":0-100,"distancia":"perto|médio|longe"}],"alerta":"obstáculo ou perigo imediato, ou vazio"}. x=0 é a esquerda da imagem e 100 a direita; y=0 é o topo. No máximo 6 objetos, os mais relevantes para orientação e segurança.';
+
+async function describe(){
+  if(busy||!stream) return;
+  if(!sample){speak('Descrição por inteligência artificial indisponível.');st.textContent='IA indisponível nesta visualização.';return;}
+  busy=true;bDesc.disabled=true;st.textContent='Analisando a cena…';
+  try{
+    var b=await frame();
+    if(!b) throw {message:'Câmera ainda sem imagem.'};
+    var r=await sample.json(PROMPT,{images:[b],modelTier:'quick',cache:false});
+    render(r);
+  }catch(e){
+    st.textContent='Não foi possível descrever agora ('+((e&&e.code)||(e&&e.message)||'erro')+'). Confira a chave de API e o nome do modelo.';
+    if(e&&e.code==='rate_limited') setAuto(false);
+  }finally{busy=false;if(stream)bDesc.disabled=false;}
+}
+
+function render(r){
+  ov.innerHTML='';
+  var falas=[];
+  (r.objetos||[]).forEach(function(o){
+    var t=document.createElement('div');t.className='tag';
+    t.textContent=o.nome;
+    t.style.left=Math.min(92,Math.max(8,o.x))+'%';
+    t.style.top=Math.min(88,Math.max(10,o.y))+'%';
+    ov.appendChild(t);
+    var pos=o.x<33?'à esquerda':(o.x>66?'à direita':'à frente');
+    falas.push(o.nome+' '+pos+(o.distancia?', '+o.distancia:''));
+  });
+  out.textContent='';
+  var p=document.createElement('p');p.textContent=r.resumo||'Cena sem descrição.';out.appendChild(p);
+  if(falas.length){var l=document.createElement('p');l.className='note';l.textContent='Objetos: '+falas.join('; ')+'.';out.appendChild(l);}
+  if(r.alerta){var a=document.createElement('p');a.style.fontWeight='700';a.textContent='⚠️ Atenção: '+r.alerta;out.appendChild(a);}
+  st.textContent='Atualizado às '+new Date().toLocaleTimeString('pt-BR');
+  vrUpdate(r);
+  speak((r.alerta?'Atenção: '+r.alerta+'. ':'')+(r.resumo||'')+' '+falas.join('. '));
+}
+
+bDesc.onclick=describe;
+
+function setAuto(on){
+  bAuto.setAttribute('aria-pressed',on?'true':'false');
+  bAuto.textContent='⏱️ Modo contínuo: '+(on?'ligado':'desligado');
+  clearInterval(timer);timer=null;
+  if(on){describe();timer=setInterval(describe,9000);}
+}
+bAuto.onclick=function(){setAuto(bAuto.getAttribute('aria-pressed')!=='true');};
+
+// ===== Modo VR (tela dividida para óculos tipo Shinecon) =====
+var vrOn=false,rec=null,wl=null;
+function eyes(){return document.querySelectorAll('#vr .eye');}
+function vrUpdate(r){
+  var txt=(r.alerta?'⚠️ '+r.alerta+'. ':'')+(r.resumo||'');
+  eyes().forEach(function(e){
+    e.querySelector('.ov').innerHTML=ov.innerHTML;
+    e.querySelector('.cap').textContent=txt;
+  });
+}
+async function enterVR(){
+  if(!stream||vrOn) return;
+  vrOn=true;
+  eyes().forEach(function(e){
+    var vv=e.querySelector('video');vv.srcObject=stream;vv.play().catch(function(){});
+    e.querySelector('.cap').textContent='Diga: descrever, repetir ou sair';
+  });
+  $('vr').classList.add('on');
+  try{await document.documentElement.requestFullscreen();}catch(e){}
+  try{await screen.orientation.lock('landscape');}catch(e){}
+  try{wl=await navigator.wakeLock.request('screen');}catch(e){}
+  setAuto(true);
+  startVoice();
+  speak('Modo VR ligado. Encaixe o celular no óculos. Diga descrever, repetir ou sair.');
+}
+function exitVR(){
+  if(!vrOn) return;
+  vrOn=false;
+  $('vr').classList.remove('on');
+  try{if(rec){rec.onend=null;rec.stop();}}catch(e){}
+  rec=null;
+  try{if(wl)wl.release();}catch(e){}
+  wl=null;
+  try{screen.orientation.unlock();}catch(e){}
+  try{if(document.fullscreenElement)document.exitFullscreen();}catch(e){}
+  setAuto(false);
+}
+function startVoice(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){st.textContent='Comando de voz indisponível neste navegador: o modo contínuo segue ativo.';return;}
+  rec=new SR();rec.lang='pt-BR';rec.continuous=true;rec.interimResults=false;
+  rec.onresult=function(e){
+    var t=e.results[e.results.length-1][0].transcript.toLowerCase();
+    if(/sair|fechar/.test(t)) exitVR();
+    else if(/repetir|de novo/.test(t)) bRep.click();
+    else if(/descrever|descreva/.test(t)) describe();
+    else if(/cont[ií]nuo/.test(t)) setAuto(bAuto.getAttribute('aria-pressed')!=='true');
+  };
+  rec.onend=function(){ if(vrOn){try{rec.start();}catch(e){}} };
+  rec.onerror=function(){};
+  try{rec.start();}catch(e){}
+}
+$('bVR').onclick=enterVR;
+
+// ===== Foto pela câmera nativa do celular (alternativa quando a câmera ao vivo é bloqueada) =====
+$('bPhoto').onclick=function(){$('fi').click();};
+$('fi').onchange=async function(e){
+  var f=e.target.files&&e.target.files[0];e.target.value='';
+  if(!f||busy) return;
+  if(!sample){st.textContent='IA indisponível nesta visualização.';return;}
+  busy=true;st.textContent='Analisando a foto…';
+  try{
+    var bmp=await createImageBitmap(f);
+    var sc=Math.min(1,640/bmp.width),c=document.createElement('canvas');
+    c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
+    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+    var b=await new Promise(function(r){c.toBlob(r,'image/jpeg',0.7)});
+    var pic=$('pic');pic.src=c.toDataURL('image/jpeg',0.7);pic.style.display='block';ph.style.display='none';
+    var r=await sample.json(PROMPT,{images:[b],modelTier:'quick',cache:false});
+    render(r);
+  }catch(err){st.textContent='Não foi possível descrever a foto.';}
+  finally{busy=false;}
+};
+$('vr').addEventListener('dblclick',exitVR);
+document.addEventListener('fullscreenchange',function(){ if(!document.fullscreenElement&&vrOn) exitVR(); });
+})();
+</script>
+</body>
+</html>
